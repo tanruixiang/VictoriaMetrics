@@ -466,7 +466,8 @@ func (rrss *rawRowsShards) addRowsToFlush(pt *partition, rowsToFlush []rawRow) {
 	}
 
 	var rowssToMerge [][]rawRow
-
+	//COMMENT - 将待flush 的 Row 存入到 rrss.rowssToFlush 中，如果rrss.rowssToFlush 大于 defaultPartsToMerge 则
+	// 将 rrss.rowssToFlush 中的数据进行 merge 后 flush 到磁盘中
 	rrss.rowssToFlushLock.Lock()
 	if len(rrss.rowssToFlush) == 0 {
 		rrss.updateFlushDeadline()
@@ -524,7 +525,7 @@ func (rrs *rawRowsShard) Len() int {
 
 func (rrs *rawRowsShard) addRows(rows []rawRow) ([]rawRow, []rawRow) {
 	var rowsToFlush []rawRow
-
+	//COMMENT - 创建新的rows
 	rrs.mu.Lock()
 	if cap(rrs.rows) == 0 {
 		rrs.rows = newRawRows()
@@ -532,6 +533,9 @@ func (rrs *rawRowsShard) addRows(rows []rawRow) ([]rawRow, []rawRow) {
 	if len(rrs.rows) == 0 {
 		rrs.updateFlushDeadline()
 	}
+	//COMMENT - 将rows copy 到 rrs 中,本函数中最多容纳 maxRawRowsPerShard 个 rows 插入
+	// 若待添加的 rows 还有剩余，则会将已满的 rrs.rows 放入到 rowsToFlush 中交由上层进行flush
+	// 还未处理的 rows 也同样返回给上层
 	n := copy(rrs.rows[len(rrs.rows):cap(rrs.rows)], rows)
 	rrs.rows = rrs.rows[:len(rrs.rows)+n]
 	rows = rows[n:]

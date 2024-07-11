@@ -54,7 +54,7 @@ var (
 )
 
 type part struct {
-	ph partHeader
+	ph partHeader //COMMENT - 该 part 的 metadata
 
 	path string
 

@@ -13,16 +13,16 @@ import (
 
 type partHeader struct {
 	// The number of items the part contains.
-	itemsCount uint64
+	itemsCount uint64 //COMMENT - items 索引数
 
 	// The number of blocks the part contains.
 	blocksCount uint64
 
 	// The first item in the part.
-	firstItem []byte
+	firstItem []byte //COMMENT - 第一个item
 
 	// The last item in the part.
-	lastItem []byte
+	lastItem []byte //COMMENT - 最后一个item  应该是类似 zonemap 最大最小值
 }
 
 type partHeaderJSON struct {

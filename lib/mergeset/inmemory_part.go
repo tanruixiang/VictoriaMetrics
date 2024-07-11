@@ -11,13 +11,13 @@ import (
 
 type inmemoryPart struct {
 	ph partHeader
-	bh blockHeader
+	bh blockHeader //COMMENT - 这几个有什么区别 TODO
 	mr metaindexRow
-
-	metaindexData bytesutil.ByteBuffer
-	indexData     bytesutil.ByteBuffer
-	itemsData     bytesutil.ByteBuffer
-	lensData      bytesutil.ByteBuffer
+	//COMMENT - 序列化使用
+	metaindexData bytesutil.ByteBuffer // metaindex.bin
+	indexData     bytesutil.ByteBuffer // index.bin
+	itemsData     bytesutil.ByteBuffer // items.bin
+	lensData      bytesutil.ByteBuffer // lens.bin
 }
 
 func (mp *inmemoryPart) Reset() {
@@ -31,6 +31,7 @@ func (mp *inmemoryPart) Reset() {
 	mp.lensData.Reset()
 }
 
+// COMMENT - 将 inmemoryPart 写入到磁盘中
 // MustStoreToDisk stores mp to the given path on disk.
 func (mp *inmemoryPart) MustStoreToDisk(path string) {
 	fs.MustMkdirFailIfExist(path)
@@ -102,6 +103,7 @@ func (mp *inmemoryPart) Init(ib *inmemoryBlock) {
 
 var inmemoryPartBytePool bytesutil.ByteBufferPool
 
+// COMMENT - TODO 查看具体含义
 // It is safe calling NewPart multiple times.
 // It is unsafe re-using mp while the returned part is in use.
 func (mp *inmemoryPart) NewPart() *part {

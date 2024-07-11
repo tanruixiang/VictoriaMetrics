@@ -2793,7 +2793,7 @@ func (ii *indexItems) addReverseMetricGroupIfNeeded(prefix []byte, mn *MetricNam
 	if bytes.IndexByte(mn.MetricGroup, '.') < 0 {
 		// The reverse metric group is needed only for Graphite-like metrics with points.
 		return
-	}
+	} //COMMENT - 优化正则搜索
 	// This is most likely a Graphite metric like 'foo.bar.baz'.
 	// Store reverse metric name 'zab.rab.oof' in order to speed up search for '*.bar.baz'
 	// when the Graphite wildcard has a suffix matching small number of time series.

@@ -30,7 +30,7 @@ const (
 //
 // The cache evicts inactive entries after the given expireDuration.
 // Recently accessed entries survive expireDuration.
-type Cache struct {
+type Cache struct { //COMMENT - 这是什么实现方法TODO
 	curr atomic.Pointer[fastcache.Cache]
 	prev atomic.Pointer[fastcache.Cache]
 

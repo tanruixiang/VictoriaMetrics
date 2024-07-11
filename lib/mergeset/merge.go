@@ -27,6 +27,7 @@ type PrepareBlockCallback func(data []byte, items []Item) ([]byte, []Item)
 // The function immediately returns when stopCh is closed.
 //
 // It also atomically adds the number of items merged to itemsMerged.
+// COMMENT - 把多个blockStreamReader构造成blockStreamMerger结果，merger 用堆进行合并
 func mergeBlockStreams(ph *partHeader, bsw *blockStreamWriter, bsrs []*blockStreamReader, prepareBlock PrepareBlockCallback, stopCh <-chan struct{},
 	itemsMerged *atomic.Uint64) error {
 	bsm := bsmPool.Get().(*blockStreamMerger)
@@ -100,6 +101,7 @@ func (bsm *blockStreamMerger) Init(bsrs []*blockStreamReader, prepareBlock Prepa
 
 var errForciblyStopped = fmt.Errorf("forcibly stopped")
 
+// COMMENT - 实际合并过程
 func (bsm *blockStreamMerger) Merge(bsw *blockStreamWriter, ph *partHeader, stopCh <-chan struct{}, itemsMerged *atomic.Uint64) error {
 again:
 	if len(bsm.bsrHeap) == 0 {

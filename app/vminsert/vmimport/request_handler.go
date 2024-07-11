@@ -23,6 +23,7 @@ var (
 // InsertHandler processes `/api/v1/import` request.
 //
 // See https://github.com/VictoriaMetrics/VictoriaMetrics/issues/6
+// NOTE - 此处处理 /api/v1/import 请求
 func InsertHandler(req *http.Request) error {
 	extraLabels, err := parserCommon.GetExtraLabels(req)
 	if err != nil {
@@ -35,6 +36,7 @@ func InsertHandler(req *http.Request) error {
 }
 
 func insertRows(rows []parser.Row, extraLabels []prompbmarshal.Label) error {
+	//COMMENT - 同样是通过 sync.pool 进行写入携程管理的
 	ctx := getPushCtx()
 	defer putPushCtx(ctx)
 

@@ -22,6 +22,7 @@ var (
 	rowsPerInsert      = metrics.NewHistogram(`vmagent_rows_per_insert{type="vmimport"}`)
 )
 
+// COMMENT - 此处处理 /api/v1/import 请求
 // InsertHandler processes `/api/v1/import` request.
 //
 // See https://github.com/VictoriaMetrics/VictoriaMetrics/issues/6

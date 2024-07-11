@@ -112,7 +112,7 @@ type Table struct {
 	// rawItems are converted to inmemoryParts at least every pendingItemsFlushInterval or when rawItems becomes full.
 	//
 	// rawItems aren't visible for search due to performance reasons.
-	rawItems rawItemsShards
+	rawItems rawItemsShards //COMMENT - rawItems 是包含最近添加的，但是还没有转换成parts的 items，rawItems满或经过pendingItemsFlushInterval时间即开始转换
 
 	// partsLock protects inmemoryParts and fileParts.
 	partsLock sync.Mutex
@@ -178,7 +178,7 @@ func (riss *rawItemsShards) addItems(tb *Table, items [][]byte) {
 	shardsLen := uint32(len(shards))
 	for len(items) > 0 {
 		n := riss.shardIdx.Add(1)
-		idx := n % shardsLen
+		idx := n % shardsLen //COMMENT - tailItems 是仍未处理的 items（因为rawItemsShard的ibs已满），ibsToFlush是需要flush的ibs
 		tailItems, ibsToFlush := shards[idx].addItems(items)
 		riss.addIbsToFlush(tb, ibsToFlush)
 		items = tailItems
@@ -218,11 +218,11 @@ func (riss *rawItemsShards) updateFlushDeadline() {
 	riss.flushDeadlineMs.Store(time.Now().Add(pendingItemsFlushInterval).UnixMilli())
 }
 
-type rawItemsShardNopad struct {
-	flushDeadlineMs atomic.Int64
+type rawItemsShardNopad struct { //COMMENT -  在内存中但是没有写到 parts 的数据，是 memtable 集合？
+	flushDeadlineMs atomic.Int64 // flush 时间
 
 	mu  sync.Mutex
-	ibs []*inmemoryBlock
+	ibs []*inmemoryBlock // 分多个 inmemoryBlock 存储
 }
 
 type rawItemsShard struct {
@@ -259,7 +259,7 @@ func (ris *rawItemsShard) addItems(items [][]byte) ([][]byte, []*inmemoryBlock) 
 		if ib.Add(item) {
 			continue
 		}
-		if len(ibs) >= maxBlocksPerShard {
+		if len(ibs) >= maxBlocksPerShard { //COMMENT - rawItemsShard 中的ibs数量超出 maxBlocksPerShard 限制时，需要flush并且创建新的 ibs
 			ibsToFlush = append(ibsToFlush, ibs...)
 			ibs = make([]*inmemoryBlock, 0, maxBlocksPerShard)
 			tailItems = items[i:]
@@ -270,7 +270,7 @@ func (ris *rawItemsShard) addItems(items [][]byte) ([][]byte, []*inmemoryBlock) 
 			ibs = append(ibs, ib)
 			continue
 		}
-
+		//COMMENT - 对于过长的 item 报错
 		// Skip too long item
 		itemPrefix := item
 		if len(itemPrefix) > 128 {
@@ -836,10 +836,12 @@ func (tb *Table) flushBlocksToInmemoryParts(ibs []*inmemoryBlock, isFinal bool) 
 
 	// Merge ibs into in-memory parts.
 	var pwsLock sync.Mutex
+	//COMMENT - 按 defaultPartsToMerge 一组进行 merge
 	pws := make([]*partWrapper, 0, (len(ibs)+defaultPartsToMerge-1)/defaultPartsToMerge)
 	wg := getWaitGroup()
 	for len(ibs) > 0 {
 		n := defaultPartsToMerge
+		//COMMENT - 最后一组不足额
 		if n > len(ibs) {
 			n = len(ibs)
 		}
@@ -932,6 +934,7 @@ func putWaitGroup(wg *sync.WaitGroup) {
 
 var wgPool sync.Pool
 
+// COMMENT - 合并InmemoryParts,其中会根据 getPartsForOptimalMerge 筛选哪些需要合并，哪些不需要
 func (tb *Table) mustMergeInmemoryParts(pws []*partWrapper) []*partWrapper {
 	var pwsResult []*partWrapper
 	var pwsResultLock sync.Mutex
@@ -983,6 +986,7 @@ func (tb *Table) mustMergeInmemoryPartsFinal(pws []*partWrapper) *partWrapper {
 	return tb.mustMergeIntoInmemoryPart(bsrs, flushToDiskDeadline)
 }
 
+// COMMENT - TODO 查看具体含义 每个inmemoryBlock转换成 inmemoryPart 参与合并?
 func (tb *Table) createInmemoryPart(ibs []*inmemoryBlock) *partWrapper {
 	// Prepare blockStreamReaders for source blocks.
 	bsrs := make([]*blockStreamReader, 0, len(ibs))
@@ -1011,6 +1015,7 @@ func (tb *Table) createInmemoryPart(ibs []*inmemoryBlock) *partWrapper {
 	return tb.mustMergeIntoInmemoryPart(bsrs, flushToDiskDeadline)
 }
 
+// COMMENT - TODO 查看具体含义
 func (tb *Table) mustMergeIntoInmemoryPart(bsrs []*blockStreamReader, flushToDiskDeadline time.Time) *partWrapper {
 	// Prepare blockStreamWriter for destination part.
 	outItemsCount := uint64(0)
@@ -1158,6 +1163,7 @@ func (tb *Table) releasePartsToMerge(pws []*partWrapper) {
 	tb.partsLock.Unlock()
 }
 
+// COMMENT - 合并 parts 函数,可能涉及将合并后的parts (MustStoreToDisk) 写到 disk 中
 // mergeParts merges pws to a single resulting part.
 //
 // It is expected that pws contains at least a single part.

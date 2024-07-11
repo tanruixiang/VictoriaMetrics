@@ -1621,7 +1621,7 @@ func (s *Storage) AddRows(mrs []MetricRow, precisionBits uint8) error {
 	var firstErr error
 	ic := getMetricRowsInsertCtx()
 	maxBlockLen := len(ic.rrs)
-	for len(mrs) > 0 {
+	for len(mrs) > 0 { //COMMENT - 以每批次最大 maxBlockLen 个进行处理
 		mrsBlock := mrs
 		if len(mrs) > maxBlockLen {
 			mrsBlock = mrs[:maxBlockLen]
@@ -1643,8 +1643,8 @@ func (s *Storage) AddRows(mrs []MetricRow, precisionBits uint8) error {
 }
 
 type metricRowsInsertCtx struct {
-	rrs    []rawRow
-	tmpMrs []*MetricRow
+	rrs    []rawRow     //COMMENT - 包含 时间戳 tsid 和 值
+	tmpMrs []*MetricRow //COMMENT - 包含 metricaname 以及 时间戳  值
 }
 
 func getMetricRowsInsertCtx() *metricRowsInsertCtx {
@@ -1844,20 +1844,20 @@ func (s *Storage) add(rows []rawRow, dstMrs []*MetricRow, mrs []MetricRow, preci
 		r.Timestamp = mr.Timestamp
 		r.Value = mr.Value
 		r.PrecisionBits = precisionBits
-
+		//COMMENT - 搜索 mr.MetricNameRaw 对应的 TSID，并存储在 r.TSID 中，因为 rawRow 需要 TSID
 		// Search for TSID for the given mr.MetricNameRaw and store it at r.TSID.
-		if string(mr.MetricNameRaw) == string(prevMetricNameRaw) {
+		if string(mr.MetricNameRaw) == string(prevMetricNameRaw) { //COMMENT - 当前 mr 和前一个 mr 的 MetricNameRaw 相同，则 r.TSID 和前一个 r.TSID 相同
 			// Fast path - the current mr contains the same metric name as the previous mr, so it contains the same TSID.
 			// This path should trigger on bulk imports when many rows contain the same MetricNameRaw.
 			r.TSID = prevTSID
 			continue
 		}
-		if s.getTSIDFromCache(&genTSID, mr.MetricNameRaw) {
+		if s.getTSIDFromCache(&genTSID, mr.MetricNameRaw) { //COMMENT - 从 cache 中获取 mr.MetricNameRaw 对应的 TSID
 			// Fast path - the TSID for the given mr.MetricNameRaw has been found in cache and isn't deleted.
 			// There is no need in checking whether r.TSID.MetricID is deleted, since tsidCache doesn't
 			// contain MetricName->TSID entries for deleted time series.
 			// See Storage.DeleteSeries code for details.
-
+			// 判断是否超出限制器限制，超出则跳过该 metric
 			if !s.registerSeriesCardinality(r.TSID.MetricID, mr.MetricNameRaw) {
 				// Skip row, since it exceeds cardinality limit
 				j--
@@ -1866,11 +1866,11 @@ func (s *Storage) add(rows []rawRow, dstMrs []*MetricRow, mrs []MetricRow, preci
 			r.TSID = genTSID.TSID
 			prevTSID = r.TSID
 			prevMetricNameRaw = mr.MetricNameRaw
-
+			//COMMENT - 找到的 TSID 存储在上一个 idb 中，生成一个新的 TSID 存储在当前 idb 中
 			if genTSID.generation < generation {
 				// The found TSID is from the previous indexdb. Create it in the current indexdb.
 				date := uint64(r.Timestamp) / msecPerDay
-
+				// 将 Metric name 解码出名字和tag到mn中
 				if err := mn.UnmarshalRaw(mr.MetricNameRaw); err != nil {
 					if firstWarn == nil {
 						firstWarn = fmt.Errorf("cannot unmarshal MetricNameRaw %q: %w", mr.MetricNameRaw, err)
@@ -1998,6 +1998,7 @@ func SetLogNewSeries(ok bool) {
 
 var logNewSeries = false
 
+// COMMENT - 分别创建 global 和 perday 索引
 func createAllIndexesForMetricName(is *indexSearch, mn *MetricName, tsid *TSID, date uint64) {
 	is.createGlobalIndexes(tsid, mn)
 	is.createPerDayIndexes(date, tsid, mn)
@@ -2608,6 +2609,7 @@ type generationTSID struct {
 	generation uint64
 }
 
+// COMMENT - TODO 这里没看懂
 func (s *Storage) getTSIDFromCache(dst *generationTSID, metricName []byte) bool {
 	buf := (*[unsafe.Sizeof(*dst)]byte)(unsafe.Pointer(dst))[:]
 	buf = s.tsidCache.Get(buf[:0], metricName)

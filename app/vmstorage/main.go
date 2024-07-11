@@ -151,7 +151,7 @@ func AddRows(mrs []storage.MetricRow) error {
 	if Storage.IsReadOnly() {
 		return errReadOnly
 	}
-	resetResponseCacheIfNeeded(mrs)
+	resetResponseCacheIfNeeded(mrs) //COMMENT - 此函数实际为 ResetRollupResultCacheIfNeeded
 	WG.Add(1)
 	err := Storage.AddRows(mrs, uint8(*precisionBits))
 	WG.Done()

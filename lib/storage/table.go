@@ -271,7 +271,7 @@ func (tb *table) MustAddRows(rows []rawRow) {
 	// Verify whether all the rows may be added to a single partition.
 	ptwsX := getPartitionWrappers()
 	defer putPartitionWrappers(ptwsX)
-
+	//COMMENT - 从table 中取出所有 partitionWrappers
 	ptwsX.a = tb.GetPartitions(ptwsX.a[:0])
 	ptws := ptwsX.a
 	for i, ptw := range ptws {
@@ -364,6 +364,7 @@ func (tb *table) MustAddRows(rows []rawRow) {
 	tb.ptwsLock.Unlock()
 }
 
+// COMMENT - retentionPeriod 配置了合法的数据保留时间，，在此设置范围，其中 max 由于可能时区飘逸，因此相比于当前时刻加了2天
 func (tb *table) getMinMaxTimestamps() (int64, int64) {
 	now := int64(fasttime.UnixTimestamp() * 1000)
 	minTimestamp := now - tb.s.retentionMsecs

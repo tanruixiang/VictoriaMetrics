@@ -35,6 +35,7 @@ var (
 		"See https://docs.victoriametrics.com/#rollup-result-cache . See also -search.disableCache")
 )
 
+// COMMENT - 这里有什么用? TODO
 // ResetRollupResultCacheIfNeeded resets rollup result cache if mrs contains timestamps outside `now - search.cacheTimestampOffset`.
 func ResetRollupResultCacheIfNeeded(mrs []storage.MetricRow) {
 	if *disableAutoCacheReset {

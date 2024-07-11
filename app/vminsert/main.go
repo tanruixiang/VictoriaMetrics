@@ -98,6 +98,7 @@ func Init() {
 	vminsertCommon.InitStreamAggr()
 	storage.SetMaxLabelsPerTimeseries(*maxLabelsPerTimeseries)
 	storage.SetMaxLabelValueLen(*maxLabelValueLen)
+	//NOTE - UnmarshalWorkers 是 unmarshal 任务的携程池，在此创建
 	common.StartUnmarshalWorkers()
 	if len(*graphiteListenAddr) > 0 {
 		graphiteServer = graphiteserver.MustStart(*graphiteListenAddr, *graphiteUseProxyProtocol, graphite.InsertHandler)

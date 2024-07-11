@@ -136,11 +136,11 @@ func unmarshalTagValue(dst, src []byte) ([]byte, []byte, error) {
 
 // MetricName reperesents a metric name.
 type MetricName struct {
-	MetricGroup []byte
+	MetricGroup []byte //COMMENT - 此处语义表示 metric 的名字，不包含tag等
 
 	// Tags are optional. They must be sorted by tag Key for canonical view.
 	// Use sortTags method.
-	Tags []Tag
+	Tags []Tag // COMMENT - 此处语义表示 metric 的 tags
 }
 
 // GetMetricName returns a MetricName from pool.
@@ -503,6 +503,7 @@ func SetMaxLabelsPerTimeseries(maxLabels int) {
 	}
 }
 
+// COMMENT - 将 labels 编码成字符串，单个 label 被编码成 |name长度|name|value长度|value|
 // MarshalMetricNameRaw marshals labels to dst and returns the result.
 //
 // The result must be unmarshaled with MetricName.UnmarshalRaw
@@ -533,7 +534,7 @@ func MarshalMetricNameRaw(dst []byte, labels []prompb.Label) []byte {
 		}
 		dstSize += len(label.Name)
 		dstSize += len(label.Value)
-		dstSize += 4
+		dstSize += 4 //COMMENT - 2 个 u16, len of name and value
 	}
 	dst = bytesutil.ResizeWithCopyMayOverallocate(dst, dstSize)[:dstLen]
 

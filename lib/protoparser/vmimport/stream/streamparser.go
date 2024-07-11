@@ -43,6 +43,7 @@ func Parse(r io.Reader, isGzipped bool, callback func(rows []vmimport.Row) error
 		uw.callback = callback
 		uw.reqBuf, ctx.reqBuf = ctx.reqBuf, uw.reqBuf
 		ctx.wg.Add(1)
+		//NOTE - 将该 unmarshal 任务通过 chan 放到携程池中进行
 		common.ScheduleUnmarshalWork(uw)
 		wcr.DecConcurrency()
 	}
@@ -152,6 +153,7 @@ func (uw *unmarshalWork) runCallback(rows []vmimport.Row) {
 	ctx.wg.Done()
 }
 
+// NOTE - 此处实现 common.UnmarshalWork 接口，携程池会调用 Unmarshal() 方法
 // Unmarshal implements common.UnmarshalWork
 func (uw *unmarshalWork) Unmarshal() {
 	uw.rows.Unmarshal(bytesutil.ToUnsafeString(uw.reqBuf))

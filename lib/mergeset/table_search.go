@@ -68,9 +68,9 @@ func (ts *TableSearch) Init(tb *Table) {
 
 	ts.tb = tb
 	ts.needClosing = true
-
+	//COMMENT - pws 中存的是需要查询的part，包括inmemory part 和 fileParts
 	ts.pws = ts.tb.getParts(ts.pws[:0])
-
+	//COMMENT - 对于每个partWrapper,初始化一个partSearch用于查询
 	// Initialize the psPool.
 	ts.psPool = slicesutil.SetLength(ts.psPool, len(ts.pws))
 	for i, pw := range ts.pws {

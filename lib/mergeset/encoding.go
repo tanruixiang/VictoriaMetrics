@@ -62,13 +62,16 @@ func (ib *inmemoryBlock) Swap(i, j int) {
 
 type inmemoryBlock struct {
 	// commonPrefix contains common prefix for all the items stored in the inmemoryBlock
+	//COMMENT -  所有 items 的公共最大前缀
 	commonPrefix []byte
 
 	// data contains source data for items
+	//COMMENT - 序列化的时间线数据，此处为平坦的内存卡，数据顺序存储
 	data []byte
 
 	// items contains items stored in inmemoryBlock.
 	// Every item contains the prefix specified at commonPrefix.
+	//COMMENT - item 在 data 中的 offset
 	items []Item
 }
 
@@ -149,12 +152,13 @@ func commonPrefixLen(a, b []byte) int {
 	return i
 }
 
+// COMMENT - 将 x 将入到 ib 的 data 结尾，并且记录 index
 // Add adds x to the end of ib.
 //
 // false is returned if x isn't added to ib due to block size constraints.
 func (ib *inmemoryBlock) Add(x []byte) bool {
 	data := ib.data
-	if len(x)+len(data) > maxInmemoryBlockSize {
+	if len(x)+len(data) > maxInmemoryBlockSize { //COMMENT - 空间不足
 		return false
 	}
 	if cap(data) == 0 {

@@ -26,6 +26,7 @@ type InsertCtx struct {
 	skipStreamAggr bool
 }
 
+// COMMENT - reset 各个字段，其中清空已经分配了内存的字段，如果需要的话，根据 rowsLen 开更大的内存空间
 // Reset resets ctx for future fill with rowsLen rows.
 func (ctx *InsertCtx) Reset(rowsLen int) {
 	labels := ctx.Labels
@@ -78,7 +79,7 @@ func (ctx *InsertCtx) WriteDataPointExt(metricNameRaw []byte, labels []prompb.La
 
 func (ctx *InsertCtx) addRow(metricNameRaw []byte, timestamp int64, value float64) error {
 	mrs := ctx.mrs
-	if cap(mrs) > len(mrs) {
+	if cap(mrs) > len(mrs) { //COMMENT - 充分利用已有内存，不足才补齐
 		mrs = mrs[:len(mrs)+1]
 	} else {
 		mrs = append(mrs, storage.MetricRow{})
@@ -88,7 +89,7 @@ func (ctx *InsertCtx) addRow(metricNameRaw []byte, timestamp int64, value float6
 	mr.MetricNameRaw = metricNameRaw
 	mr.Timestamp = timestamp
 	mr.Value = value
-	if len(ctx.metricNamesBuf) > 16*1024*1024 {
+	if len(ctx.metricNamesBuf) > 16*1024*1024 { //COMMENT - metricNamesBuf 超出一定使用长度的时候，将所有cache 在内存中的 rows 写入到低层存储
 		if err := ctx.FlushBufs(); err != nil {
 			return err
 		}
@@ -137,6 +138,7 @@ func (ctx *InsertCtx) ApplyRelabeling() {
 	ctx.Labels = ctx.relabelCtx.ApplyRelabeling(ctx.Labels)
 }
 
+// COMMENT - 将现在存在内存中的 rows 写入到底层存储中
 // FlushBufs flushes buffered rows to the underlying storage.
 func (ctx *InsertCtx) FlushBufs() error {
 	sas := sasGlobal.Load()
