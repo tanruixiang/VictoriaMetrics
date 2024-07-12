@@ -61,6 +61,7 @@ func (tr *TimeRange) fromPartitionName(name string) error {
 	return nil
 }
 
+// COMMENT - 一个 parition 跨度为一个月
 // fromPartitionTimestamp initializes tr from the given partition timestamp.
 func (tr *TimeRange) fromPartitionTimestamp(timestamp int64) {
 	t := timestampToTime(timestamp)

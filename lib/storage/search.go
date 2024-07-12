@@ -156,7 +156,7 @@ func (s *Search) Init(qt *querytracer.Tracer, storage *Storage, tfss []*TagFilte
 	s.tfss = tfss
 	s.deadline = deadline
 	s.needClosing = true
-
+	//COMMENT - 获取 TSID
 	var tsids []TSID
 	metricIDs, err := s.idb.searchMetricIDs(qt, tfss, tr, maxMetrics, deadline)
 	if err == nil {

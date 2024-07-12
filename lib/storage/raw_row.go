@@ -79,6 +79,7 @@ func (rrs *rawRowsSort) Swap(i, j int) {
 	x[i], x[j] = x[j], x[i]
 }
 
+// COMMENT - 将 rawRow 转换成inMemoryPart 的具体实现
 func (rrm *rawRowsMarshaler) marshalToInmemoryPart(mp *inmemoryPart, rows []rawRow) {
 	if len(rows) == 0 {
 		return
@@ -94,13 +95,15 @@ func (rrm *rawRowsMarshaler) marshalToInmemoryPart(mp *inmemoryPart, rows []rawR
 
 	ph := &mp.ph
 	ph.Reset()
-
+	//COMMENT - 按照 tsid timestamp 进行排序
 	// Sort rows by (TSID, Timestamp) if they aren't sorted yet.
 	rrs := rawRowsSort(rows)
 	if !sort.IsSorted(&rrs) {
 		sort.Sort(&rrs)
 	}
 
+	//COMMENT - 将排序后的 rows 按序分到不同的 block 中
+	// 同 block 的 tsid 相同，timestamp 递增
 	// Group rows into blocks.
 	var scale int16
 	var rowsMerged atomic.Uint64

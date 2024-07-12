@@ -18,6 +18,7 @@ const (
 	maxBlockSize = 8 * maxRowsPerBlock
 )
 
+// COMMENT - 一个Block里存的是相同的 tsid 的时间线值
 // Block represents a block of time series values for a single TSID.
 type Block struct {
 	bh blockHeader
@@ -185,6 +186,7 @@ func (b *Block) rowsCount() int {
 	return len(b.values[b.nextIdx:])
 }
 
+// COMMENT - 将 block 编码成二进制表示
 // MarshalData marshals the block into binary representation.
 func (b *Block) MarshalData(timestampsBlockOffset, valuesBlockOffset uint64) ([]byte, []byte, []byte) {
 	if len(b.values) == 0 {

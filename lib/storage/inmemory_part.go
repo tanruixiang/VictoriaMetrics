@@ -56,6 +56,7 @@ func (mp *inmemoryPart) MustStoreToDisk(path string) {
 	// Do not sync parent directory - it must be synced by the caller.
 }
 
+// COMMENT - 将 rawRow 转换成inMemoryPart
 // InitFromRows initializes mp from the given rows.
 func (mp *inmemoryPart) InitFromRows(rows []rawRow) {
 	if len(rows) == 0 {

@@ -77,13 +77,14 @@ func marshalTagValue(dst, src []byte) []byte {
 	n1 := bytes.IndexByte(src, escapeChar)
 	n2 := bytes.IndexByte(src, tagSeparatorChar)
 	n3 := bytes.IndexByte(src, kvSeparatorChar)
+	//COMMENT - 没有以上三类字符，直接将src append 到 dst 中 TODO kvSeparatorChar 是啥,tag分割线？
 	if n1 < 0 && n2 < 0 && n3 < 0 {
 		// Fast path.
 		dst = append(dst, src...)
 		dst = append(dst, tagSeparatorChar)
 		return dst
 	}
-
+	//COMMENT - 否则按上面三类字符分割放入到dst 中
 	// Slow path.
 	for _, ch := range src {
 		switch ch {

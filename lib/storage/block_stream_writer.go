@@ -130,6 +130,7 @@ func (bsw *blockStreamWriter) MustClose() {
 	bsw.reset()
 }
 
+// COMMENT - 涉及 bsw 的序列化压缩 flush 等
 // WriteExternalBlock writes b to bsw and updates ph and rowsMerged.
 func (bsw *blockStreamWriter) WriteExternalBlock(b *Block, ph *partHeader, rowsMerged *atomic.Uint64) {
 	rowsMerged.Add(uint64(b.rowsCount()))

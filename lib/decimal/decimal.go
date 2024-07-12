@@ -163,6 +163,7 @@ func AppendDecimalToFloat(dst []float64, va []int64, e int16) []float64 {
 	return dst[:len(dst)+len(va)]
 }
 
+// COMMENT - 浮点数转定点数？TODO
 // AppendFloatToDecimal converts each item in src to v*10^e and appends
 // each v to dst returning it as va.
 //

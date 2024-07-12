@@ -287,6 +287,7 @@ func (tb *table) MustAddRows(rows []rawRow) {
 		}
 
 		if i != 0 {
+			//COMMENT - 局部性原理，放前面，后面再 Add rows 可以更快找到符合条件的 partition
 			// Move the partition with the matching rows to the front of tb.ptws,
 			// so it will be detected faster next time.
 			tb.ptwsLock.Lock()
@@ -298,13 +299,13 @@ func (tb *table) MustAddRows(rows []rawRow) {
 			}
 			tb.ptwsLock.Unlock()
 		}
-
+		// 直接将所有 rows 添加到 partition 中
 		// Fast path - add all the rows into the ptw.
 		ptw.pt.AddRows(rows)
 		tb.PutPartitions(ptws)
 		return
 	}
-
+	//COMMENT - 将 rows 插入到对应的 partition 中
 	// Slower path - split rows into per-partition buckets.
 	ptBuckets := make(map[*partitionWrapper][]rawRow)
 	var missingRows []rawRow
@@ -330,7 +331,7 @@ func (tb *table) MustAddRows(rows []rawRow) {
 	if len(missingRows) == 0 {
 		return
 	}
-
+	//COMMENT - 未命中已有partition的 rows，需要创建新的 partition
 	// The slowest path - there are rows that don't fit any existing partition.
 	// Create new partitions for these rows.
 	// Do this under tb.ptwsLock.
@@ -343,7 +344,7 @@ func (tb *table) MustAddRows(rows []rawRow) {
 			// Silently skip row outside retention, since it should be deleted anyway.
 			continue
 		}
-
+		//COMMENT - 在获取锁之前，可能有别的 goroutines 创建了Partition，这里需要确认，也有可能在这个for循环中创建出来了
 		// Make sure the partition for the r hasn't been added by another goroutines.
 		ptFound := false
 		for _, ptw := range tb.ptws {

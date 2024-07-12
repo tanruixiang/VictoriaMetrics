@@ -20,9 +20,9 @@ type TableSearch struct {
 
 	tb *Table
 
-	pws []*partWrapper
+	pws []*partWrapper //COMMENT - 待查询的 parts 的所有 partWrapper
 
-	psPool []partSearch
+	psPool []partSearch //COMMENT - 待查询的 parts 封装成的 partSearch
 	psHeap partSearchHeap
 
 	err error
@@ -56,6 +56,7 @@ func (ts *TableSearch) reset() {
 	ts.needClosing = false
 }
 
+// COMMENT - 初始化 tablesearch
 // Init initializes ts for searching in the tb.
 //
 // MustClose must be called when the ts is no longer needed.
@@ -78,6 +79,7 @@ func (ts *TableSearch) Init(tb *Table) {
 	}
 }
 
+// COMMENT - seek 用于查找 ts 中第一个item 大于等于 k 的
 // Seek seeks for the first item greater or equal to k in the ts.
 func (ts *TableSearch) Seek(k []byte) {
 	if err := ts.Error(); err != nil {
@@ -90,6 +92,8 @@ func (ts *TableSearch) Seek(k []byte) {
 	ts.psHeap = ts.psHeap[:0]
 	for i := range ts.psPool {
 		ps := &ts.psPool[i]
+		//COMMENT - seek 之后会更新 ibItemIdx,此时如果该 ibItemIdx 合法，那么NextItem() 会返回true,并且将
+		// 值保存到 partSearch 的 Item 中
 		ps.Seek(k)
 		if !ps.NextItem() {
 			if err := ps.Error(); err != nil {
@@ -99,12 +103,14 @@ func (ts *TableSearch) Seek(k []byte) {
 			}
 			continue
 		}
+		//COMMENT - 将存在值的 partSearch 放入到 psHeap 中
 		ts.psHeap = append(ts.psHeap, ps)
 	}
 	if len(ts.psHeap) == 0 {
 		ts.err = io.EOF
 		return
 	}
+	//COMMENT - 构造成堆
 	heap.Init(&ts.psHeap)
 	ts.Item = ts.psHeap[0].Item
 	ts.nextItemNoop = true

@@ -190,6 +190,7 @@ func (pw *partWrapper) decRef() {
 	}
 }
 
+// COMMENT - 根据时间戳创建partition
 // mustCreatePartition creates new partition for the given timestamp and the given paths
 // to small and big partitions.
 func mustCreatePartition(timestamp int64, smallPartitionsPath, bigPartitionsPath string, s *Storage) *partition {
@@ -210,6 +211,7 @@ func mustCreatePartition(timestamp int64, smallPartitionsPath, bigPartitionsPath
 	return pt
 }
 
+// COMMENT - 后台任务，完成例如合并、定时flush等工作
 func (pt *partition) startBackgroundWorkers() {
 	// Start file parts mergers, so they could start merging unmerged parts if needed.
 	// There is no need in starting in-memory parts mergers, since there are no in-memory parts yet.
@@ -810,10 +812,12 @@ func (pt *partition) mustMergeInmemoryPartsFinal(pws []*partWrapper) *partWrappe
 	return newPartWrapperFromInmemoryPart(mpDst, flushToDiskDeadline)
 }
 
+// COMMENT - 根据 rawRow 创建 InmemoryPart
 func (pt *partition) createInmemoryPart(rows []rawRow) *partWrapper {
 	if len(rows) == 0 {
 		return nil
 	}
+	//COMMENT - 从 rows 创建出 inmemoryPart
 	mp := getInmemoryPart()
 	mp.InitFromRows(rows)
 

@@ -63,6 +63,8 @@ func (ps *partSearch) Init(p *part) {
 	ps.p = p
 }
 
+// COMMENT - seek 用于查找 ps 中第一个item 大于等于 k 的
+// COMMENT - TODO 细节后续再看
 // Seek seeks for the first item greater or equal to k in ps.
 func (ps *partSearch) Seek(k []byte) {
 	if err := ps.Error(); err != nil {
@@ -70,7 +72,7 @@ func (ps *partSearch) Seek(k []byte) {
 		return
 	}
 	ps.err = nil
-
+	//COMMENT - 超出最大 item (也就是最后一个)的大小，直接返回 io.EOF
 	if string(k) > string(ps.p.ph.lastItem) {
 		// Not matching items in the part.
 		ps.err = io.EOF

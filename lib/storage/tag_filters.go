@@ -347,6 +347,7 @@ func (tf *tagFilter) getOp() string {
 	return "="
 }
 
+// COMMENT - 序列化 tagFilter,主要是|key|value|isNegative|isRegexp| 这四部分
 // Marshal appends marshaled tf to dst
 // and returns the result.
 func (tf *tagFilter) Marshal(dst []byte) []byte {

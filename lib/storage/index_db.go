@@ -308,6 +308,7 @@ func (db *indexDB) decRef() {
 
 var tagBufPool bytesutil.ByteBufferPool
 
+// COMMENT - 从 cache 中取出 TagFilters 作为 key 对应的 metricIDs 列表
 func (db *indexDB) getMetricIDsFromTagFiltersCache(qt *querytracer.Tracer, key []byte) ([]uint64, bool) {
 	qt = qt.NewChild("search for metricIDs in tag filters cache")
 	defer qt.Done()
@@ -460,7 +461,7 @@ func (is *indexSearch) getTSIDByMetricName(dst *generationTSID, metricName []byt
 
 type indexSearch struct {
 	db *indexDB
-	ts mergeset.TableSearch
+	ts mergeset.TableSearch //COMMENT - 存储了所有待查询的 parts
 	kb bytesutil.ByteBuffer
 	mp tagToMetricIDsRowParser
 
@@ -1922,12 +1923,14 @@ func (is *indexSearch) containsTimeRange(tr TimeRange) (bool, error) {
 	prefix := kb.B
 	kb.B = encoding.MarshalUint64(kb.B, minDate)
 	ts.Seek(kb.B)
+	//COMMENT - 如果seek找到了值，则 NextItem会返回 true，没找到就是false
 	if !ts.NextItem() {
 		if err := ts.Error(); err != nil {
 			return false, fmt.Errorf("error when searching for minDate=%d, prefix %q: %w", minDate, kb.B, err)
 		}
 		return false, nil
 	}
+	//COMMENT - 判断minDate 是否超出了 ts 中的maxDate（TODO 这里prefix 为什么会受到 kb.B 的后续影响）
 	if !bytes.HasPrefix(ts.Item, prefix) {
 		// minDate exceeds max date from ts.
 		return false, nil
@@ -2187,6 +2190,7 @@ func (is *indexSearch) searchMetricIDsWithFiltersOnDate(qt *querytracer.Tracer, 
 //
 // The returned metricIDs are sorted.
 func (is *indexSearch) searchMetricIDs(qt *querytracer.Tracer, tfss []*TagFilters, tr TimeRange, maxMetrics int) ([]uint64, error) {
+	//COMMENT - 获取到 metricIDs 列表
 	metricIDs, err := is.searchMetricIDsInternal(qt, tfss, tr, maxMetrics)
 	if err != nil {
 		return nil, err
@@ -2198,7 +2202,7 @@ func (is *indexSearch) searchMetricIDs(qt *querytracer.Tracer, tfss []*TagFilter
 
 	sortedMetricIDs := metricIDs.AppendTo(nil)
 	qt.Printf("sort %d matching metric ids", len(sortedMetricIDs))
-
+	//COMMENT - 过滤掉已删除的 metricIDs
 	// Filter out deleted metricIDs.
 	dmis := is.db.s.getDeletedMetricIDs()
 	if dmis.Len() > 0 {
@@ -2220,7 +2224,7 @@ func (is *indexSearch) searchMetricIDsInternal(qt *querytracer.Tracer, tfss []*T
 	defer qt.Done()
 
 	metricIDs := &uint64set.Set{}
-
+	//COMMENT - 根据时间范围判断该查询是否需要skip
 	ok, err := is.containsTimeRange(tr)
 	if err != nil {
 		return nil, err
@@ -2229,7 +2233,7 @@ func (is *indexSearch) searchMetricIDsInternal(qt *querytracer.Tracer, tfss []*T
 		qt.Printf("indexdb doesn't contain data for the given timeRange=%s", &tr)
 		return metricIDs, nil
 	}
-
+	//COMMENT - filter 优化，暂时不管 TODO
 	if tr.MinTimestamp >= is.db.s.minTimestampForCompositeIndex {
 		tfss = convertToCompositeTagFilterss(tfss)
 		qt.Printf("composite filters=%s", tfss)
@@ -2258,6 +2262,7 @@ func (is *indexSearch) searchMetricIDsInternal(qt *querytracer.Tracer, tfss []*T
 	return metricIDs, nil
 }
 
+// COMMENT - 根据 tagFilters 更新 MetricIDs
 func (is *indexSearch) updateMetricIDsForTagFilters(qt *querytracer.Tracer, metricIDs *uint64set.Set, tfs *TagFilters, tr TimeRange, maxMetrics int) error {
 	err := is.tryUpdatingMetricIDsForDateRange(qt, metricIDs, tfs, tr, maxMetrics)
 	if err == nil {
@@ -2267,7 +2272,7 @@ func (is *indexSearch) updateMetricIDsForTagFilters(qt *querytracer.Tracer, metr
 	if !errors.Is(err, errFallbackToGlobalSearch) {
 		return err
 	}
-
+	//COMMENT - 从 gloal index 中查找
 	// Slow path - fall back to search in the global inverted index.
 	qt.Printf("cannot find metric ids in per-day index; fall back to global index")
 	is.db.globalSearchCalls.Add(1)
@@ -2283,6 +2288,7 @@ func (is *indexSearch) updateMetricIDsForTagFilters(qt *querytracer.Tracer, metr
 	return nil
 }
 
+// COMMENT - 从 tagFilter 获取符合条件的 metricIDs 返回
 func (is *indexSearch) getMetricIDsForTagFilter(qt *querytracer.Tracer, tf *tagFilter, maxMetrics int, maxLoopsCount int64) (*uint64set.Set, int64, error) {
 	if tf.isNegative {
 		logger.Panicf("BUG: isNegative must be false")
@@ -2309,6 +2315,7 @@ func (is *indexSearch) getMetricIDsForTagFilter(qt *querytracer.Tracer, tf *tagF
 
 var errTooManyLoops = fmt.Errorf("too many loops is needed for applying this filter")
 
+// COMMENT - 从tagFilter 获取 metricIDs Slow 路径
 func (is *indexSearch) getMetricIDsForTagFilterSlow(tf *tagFilter, f func(metricID uint64), maxLoopsCount int64) (int64, error) {
 	if len(tf.orSuffixes) > 0 {
 		logger.Panicf("BUG: the getMetricIDsForTagFilterSlow must be called only for empty tf.orSuffixes; got %s", tf.orSuffixes)
@@ -2331,6 +2338,8 @@ func (is *indexSearch) getMetricIDsForTagFilterSlow(tf *tagFilter, f func(metric
 			}
 		}
 		loopsPaceLimiter++
+		//COMMENT - 把 item 的各个部分分割开来进行解析，主要是metricIDs 部分分割开来进行解析，prefix部分是key，需要保持一致
+		// 也就是各个映射中的key（可能是date + tag 也可能是单tag 等）要一致才有意义。
 		item := ts.Item
 		if !bytes.HasPrefix(item, prefix) {
 			return loopsCount, nil
@@ -2367,13 +2376,15 @@ func (is *indexSearch) getMetricIDsForTagFilterSlow(tf *tagFilter, f func(metric
 			return loopsCount, fmt.Errorf("error when matching %s against suffix %q: %w", tf, suffix, err)
 		}
 		if !ok {
-			prevMatch = false
+			prevMatch = false //COMMENT - 如果当前的 MetricIDs 是不满的，那么 NextItem 可能就到了下一个tag key，执行 NextItem 的速度比执行下面一大堆快 所以continue
 			if mp.MetricIDsLen() < maxMetricIDsPerRow/2 {
 				// If the current row contains non-full metricIDs list,
 				// then it is likely the next row contains the next tag value.
 				// So skip seeking for the next tag value, since it will be slower than just ts.NextItem call.
 				continue
 			}
+			//COMMENT - 优化，当前的 tag value不满足条件，因此跳过当前的tag value，
+			// 由于最后一个字符为 tagSeparatorChar,+1 后继续seek 即可到下一个tag value
 			// Optimization: skip all the metricIDs for the given tag value
 			kb.B = append(kb.B[:0], item[:len(item)-len(tail)]...)
 			// The last char in kb.B must be tagSeparatorChar. Just increment it
@@ -2387,6 +2398,7 @@ func (is *indexSearch) getMetricIDsForTagFilterSlow(tf *tagFilter, f func(metric
 			loopsCount += 1000
 			continue
 		}
+		//COMMENT - 匹配成功，将metricID加入到解决集中
 		prevMatch = true
 		prevMatchingSuffix = append(prevMatchingSuffix[:0], suffix...)
 		for _, metricID := range mp.MetricIDs {
@@ -2520,11 +2532,13 @@ func (is *indexSearch) tryUpdatingMetricIDsForDateRange(qt *querytracer.Tracer, 
 	return nil
 }
 
+// COMMENT - 根据 date 和 filters 获取满足条件的metricIDs
 func (is *indexSearch) getMetricIDsForDateAndFilters(qt *querytracer.Tracer, date uint64, tfs *TagFilters, maxMetrics int) (*uint64set.Set, error) {
 	if qt.Enabled() {
 		qt = qt.NewChild("search for metric ids on a particular day: filters=%s, date=%s, maxMetrics=%d", tfs, dateToString(date), maxMetrics)
 		defer qt.Done()
 	}
+	//COMMENT - 优化项，根据 filter 所需要的循环数 sort，先忽略 TODO
 	// Sort tfs by loopsCount needed for performing each filter.
 	// This stats is usually collected from the previous queries.
 	// This way we limit the amount of work below by applying fast filters at first.
@@ -2580,12 +2594,14 @@ func (is *indexSearch) getMetricIDsForDateAndFilters(qt *querytracer.Tracer, dat
 	qtChild := qt.NewChild("search for the first non-negative filter with the smallest cost")
 	var metricIDs *uint64set.Set
 	tfwsRemaining := tfws[:0]
+	//COMMENT - 这里的 magic number 是什么
 	maxDateMetrics := intMax
 	if maxMetrics < intMax/50 {
 		maxDateMetrics = maxMetrics * 50
 	}
 	for i, tfw := range tfws {
 		tf := tfw.tf
+		//COMMENT - Negative 或者 匹配空的先放到 tfwsRemaining 里面
 		if tf.isNegative || tf.isEmptyMatch {
 			tfwsRemaining = append(tfwsRemaining, tfw)
 			continue
@@ -2619,7 +2635,7 @@ func (is *indexSearch) getMetricIDsForDateAndFilters(qt *querytracer.Tracer, dat
 	}
 	qtChild.Done()
 	tfws = tfwsRemaining
-
+	//COMMENT - 一个都没找到，先拿出 date 下的所有 metrisID ? TODO
 	if metricIDs == nil {
 		// All the filters in tfs are negative or match too many time series.
 		// Populate all the metricIDs for the given (date),
@@ -2657,7 +2673,7 @@ func (is *indexSearch) getMetricIDsForDateAndFilters(qt *querytracer.Tracer, dat
 			is.storeLoopsCountForDateFilter(date, tfw.tf, tfw.loopsCount, filterLoopsCount)
 		}
 	}
-
+	//COMMENT - 每个 filter 取交集 TODO 看具体细节
 	// Intersect metricIDs with the rest of filters.
 	//
 	// Do not run these tag filters in parallel, since this may result in CPU and RAM waste
@@ -2886,12 +2902,14 @@ func (is *indexSearch) hasDateMetricIDNoExtDB(date, metricID uint64) bool {
 	return false
 }
 
+// COMMENT - a
 func (is *indexSearch) getMetricIDsForDateTagFilter(qt *querytracer.Tracer, tf *tagFilter, date uint64, commonPrefix []byte,
 	maxMetrics int, maxLoopsCount int64) (*uint64set.Set, int64, error) {
 	if qt.Enabled() {
 		qt = qt.NewChild("get metric ids for filter and date: filter={%s}, date=%s, maxMetrics=%d, maxLoopsCount=%d", tf, dateToString(date), maxMetrics, maxLoopsCount)
 		defer qt.Done()
 	}
+	//COMMENT - 统一都是前缀 commonPrefix (看起来是都是 nsPrefixTagToMetricIDs)
 	if !bytes.HasPrefix(tf.prefix, commonPrefix) {
 		logger.Panicf("BUG: unexpected tf.prefix %q; must start with commonPrefix %q", tf.prefix, commonPrefix)
 	}
@@ -2907,9 +2925,11 @@ func (is *indexSearch) getMetricIDsForDateTagFilter(qt *querytracer.Tracer, tf *
 	if err != nil {
 		return nil, loopsCount, err
 	}
+	//COMMENT - 如果是 isNegative，不涉及下面的bug，非判空也不涉及下面的bug,直接返回
 	if tf.isNegative || !tf.isEmptyMatch {
 		return metricIDs, loopsCount, nil
 	}
+	//COMMENT - 看起来像是修复bug，先不看 TODO
 	// The tag filter, which matches empty label such as {foo=~"bar|"}
 	// Convert it to negative filter, which matches {foo=~".+",foo!~"bar|"}.
 	// This fixes https://github.com/VictoriaMetrics/VictoriaMetrics/issues/1601
@@ -2963,6 +2983,7 @@ func appendDateTagFilterCacheKey(dst []byte, indexDBName string, date uint64, tf
 	return dst
 }
 
+// COMMENT - 获取所有该 date 的metricID? TODO
 func (is *indexSearch) getMetricIDsForDate(date uint64, maxMetrics int) (*uint64set.Set, error) {
 	// Extract all the metricIDs from (date, __name__=value)->metricIDs entries.
 	kb := kbPool.Get()
@@ -3045,6 +3066,7 @@ func (is *indexSearch) marshalCommonPrefix(dst []byte, nsPrefix byte) []byte {
 	return marshalCommonPrefix(dst, nsPrefix)
 }
 
+// COMMENT - 序列化 date 前缀，如果 date 为 0，则为全局索引，使用 nsPrefixTagToMetricIDs 否则为天级别索引，使用 (nsPrefixDateTagToMetricIDs, date)进行序列化
 func (is *indexSearch) marshalCommonPrefixForDate(dst []byte, date uint64) []byte {
 	if date == 0 {
 		// Global index
@@ -3164,6 +3186,7 @@ func (mp *tagToMetricIDsRowParser) MetricIDsLen() int {
 	return len(mp.tail) / 8
 }
 
+// COMMENT - 将metricsIDS 从 item 中解析出来，都是uin64 8 个byte 一组解析即可
 // ParseMetricIDs parses MetricIDs from mp.tail into mp.MetricIDs.
 func (mp *tagToMetricIDsRowParser) ParseMetricIDs() {
 	if mp.metricIDsParsed {
